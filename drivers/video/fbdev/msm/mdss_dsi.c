@@ -46,7 +46,23 @@ static struct mdss_dsi_data *mdss_dsi_res;
 #define DSI_ENABLE_PC_LATENCY PM_QOS_DEFAULT_VALUE
 
 static struct pm_qos_request mdss_dsi_pm_qos_request;
-
+/*HS60 code for HS60-296 by wangqilin at 2019/08/13 start*/
+enum {
+	UNKNOWN_PANEL,
+	HLT_JD9365D_720P_VIDEO_PANEL ,
+	LS_ILI9881C_720P_VIDEO_PANEL,
+	GX_ST7703_720P_VIDEO_PANEL,
+	TXD_HX8394F_720P_VIDEO_PANEL,
+	GX_HSD_ST7703_720P_VIDEO_PANEL
+	};
+extern int mdss_mdp_parse_panel_id_kernel(void);
+/* HS70 code for HS70-133 by liufurong at 2019/10/31 start */
+#ifdef CONFIG_TOUCHSCREEN_ILI
+extern void ilitek_resume_by_ddi(void);
+extern bool is_ilitek_tp;
+#endif
+/* HS70 code for HS70-133 by liufurong at 2019/10/31 end */
+/*HS60 code for HS60-296 by wangqilin at 2019/08/13 end*/
 void mdss_dump_dsi_debug_bus(u32 bus_dump_flag,
 	u32 **dump_mem)
 {
@@ -362,12 +378,12 @@ static int mdss_dsi_regulator_init(struct platform_device *pdev,
 
 	return rc;
 }
-
+/*HS60 code for HS60-296 by wangqilin at 2019/08/13 start*/
 static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 {
 	int ret = 0;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
-
+	int panel_id = UNKNOWN_PANEL;
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
 		ret = -EINVAL;
@@ -376,31 +392,62 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
-
-	ret = mdss_dsi_panel_reset(pdata, 0);
-	if (ret) {
-		pr_warn("%s: Panel reset failed. rc=%d\n", __func__, ret);
-		ret = 0;
-	}
-
-	if (gpio_is_valid(ctrl_pdata->vdd_ext_gpio)) {
-		ret = gpio_direction_output(
-			ctrl_pdata->vdd_ext_gpio, 0);
+	panel_id	= mdss_mdp_parse_panel_id_kernel();
+	if (GX_ST7703_720P_VIDEO_PANEL == panel_id || GX_HSD_ST7703_720P_VIDEO_PANEL == panel_id){
+		pr_info("%s vsp vsn off before reset\n",__func__);
+		ret = msm_mdss_enable_vreg(
+			ctrl_pdata->panel_power_data.vreg_config,
+			ctrl_pdata->panel_power_data.num_vreg, 0);
 		if (ret)
-			pr_err("%s: unable to set dir for vdd gpio\n",
+			pr_err("%s: failed to disable vregs for %s\n",
+				__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
+		ret = mdss_dsi_panel_reset(pdata, 0);
+		if (ret) {
+			pr_warn("%s: Panel reset failed. rc=%d\n", __func__, ret);
+			ret = 0;
+		}
+
+		if (gpio_is_valid(ctrl_pdata->vdd_ext_gpio)) {
+			ret = gpio_direction_output(
+				ctrl_pdata->vdd_ext_gpio, 0);
+			if (ret)
+				pr_err("%s: unable to set dir for vdd gpio\n",
 					__func__);
-	}
+		}
 
-	if (mdss_dsi_pinctrl_set_state(ctrl_pdata, false))
-		pr_debug("reset disable: pinctrl not enabled\n");
-
-	ret = msm_mdss_enable_vreg(
-		ctrl_pdata->panel_power_data.vreg_config,
-		ctrl_pdata->panel_power_data.num_vreg, 0);
-	if (ret)
-		pr_err("%s: failed to disable vregs for %s\n",
-			__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
-
+		if (mdss_dsi_pinctrl_set_state(ctrl_pdata, false))
+			pr_debug("reset disable: pinctrl not enabled\n");
+	}else{
+		pr_info("%s vsp vsn off after reset\n",__func__);
+		ret = mdss_dsi_panel_reset(pdata, 0);
+		if (ret) {
+			pr_warn("%s: Panel reset failed. rc=%d\n", __func__, ret);
+			ret = 0;
+		}
+		if (gpio_is_valid(ctrl_pdata->vdd_ext_gpio)) {
+			ret = gpio_direction_output(
+				ctrl_pdata->vdd_ext_gpio, 0);
+			if (ret)
+				pr_err("%s: unable to set dir for vdd gpio\n",
+					__func__);
+		}
+		/*HS70 code for SR-ZQL1871-01-94 by wangdeyan at 2019/10/25 start*/
+		if (mdss_dsi_pinctrl_set_state(ctrl_pdata, false))
+			pr_debug("reset disable: pinctrl not enabled\n");
+			/*HS60 code for HS60-232 by wangqilin at 2019/08/20 start*/
+			if(panel_id == LS_ILI9881C_720P_VIDEO_PANEL)
+				mdelay(1);
+			/*HS60 code for HS60-232 by wangqilin at 2019/08/20 start*/
+			if(ctrl_pdata->panel_data.panel_info.reset_delay_vsp_ms)
+				mdelay(ctrl_pdata->panel_data.panel_info.reset_delay_vsp_ms);
+			ret = msm_mdss_enable_vreg(
+				ctrl_pdata->panel_power_data.vreg_config,
+				ctrl_pdata->panel_power_data.num_vreg, 0);
+			if (ret)
+				pr_err("%s: failed to disable vregs for %s\n",
+					__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
+		}
+		/*HS70 code for SR-ZQL1871-01-94 by wangdeyan at 2019/10/25 end*/
 end:
 	return ret;
 }
@@ -409,7 +456,7 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 {
 	int ret = 0;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
-
+	int panel_id = UNKNOWN_PANEL;
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
 		return -EINVAL;
@@ -426,36 +473,67 @@ static int mdss_dsi_panel_power_on(struct mdss_panel_data *pdata)
 			pr_err("%s: unable to set dir for vdd gpio\n",
 					__func__);
 	}
+	panel_id	= mdss_mdp_parse_panel_id_kernel();
+	if (GX_ST7703_720P_VIDEO_PANEL == panel_id || GX_HSD_ST7703_720P_VIDEO_PANEL == panel_id){
+		pr_info("%s vsp vsn on after reset\n",__func__);
+		/*
+		* If continuous splash screen feature is enabled, then we need to
+		* request all the GPIOs that have already been configured in the
+		* bootloader. This needs to be done irresepective of whether
+		* the lp11_init flag is set or not.
+		 */
+		if (pdata->panel_info.cont_splash_enabled ||
+			!pdata->panel_info.mipi.lp11_init) {
+			if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
+				pr_debug("reset enable: pinctrl not enabled\n");
 
-	ret = msm_mdss_enable_vreg(
-		ctrl_pdata->panel_power_data.vreg_config,
-		ctrl_pdata->panel_power_data.num_vreg, 1);
-	if (ret) {
-		pr_err("%s: failed to enable vregs for %s\n",
-			__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
-		return ret;
-	}
+			ret = mdss_dsi_panel_reset(pdata, 1);
+			if (ret)
+				pr_err("%s: Panel reset failed. rc=%d\n",
+						__func__, ret);
+		}
+		ret = msm_mdss_enable_vreg(
+			ctrl_pdata->panel_power_data.vreg_config,
+			ctrl_pdata->panel_power_data.num_vreg, 1);
+		if (ret) {
+			pr_err("%s: failed to enable vregs for %s\n",
+				__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
+			return ret;
+		}
+	}else{
+			pr_info("%s vsp vsn on before reset\n",__func__);
+			ret = msm_mdss_enable_vreg(
+			ctrl_pdata->panel_power_data.vreg_config,
+			ctrl_pdata->panel_power_data.num_vreg, 1);
+		if (ret) {
+			pr_err("%s: failed to enable vregs for %s\n",
+				__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
+			return ret;
+		}
 
-	/*
-	 * If continuous splash screen feature is enabled, then we need to
-	 * request all the GPIOs that have already been configured in the
-	 * bootloader. This needs to be done irresepective of whether
-	 * the lp11_init flag is set or not.
-	 */
-	if (pdata->panel_info.cont_splash_enabled ||
-		!pdata->panel_info.mipi.lp11_init) {
-		if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
-			pr_debug("reset enable: pinctrl not enabled\n");
+		/*
+		* If continuous splash screen feature is enabled, then we need to
+		* request all the GPIOs that have already been configured in the
+		* bootloader. This needs to be done irresepective of whether
+		* the lp11_init flag is set or not.
+		*/
+		if (pdata->panel_info.cont_splash_enabled ||
+			!pdata->panel_info.mipi.lp11_init) {
+			if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
+				pr_debug("reset enable: pinctrl not enabled\n");
 
-		ret = mdss_dsi_panel_reset(pdata, 1);
-		if (ret)
-			pr_err("%s: Panel reset failed. rc=%d\n",
+			ret = mdss_dsi_panel_reset(pdata, 1);
+			if (ret)
+				pr_err("%s: Panel reset failed. rc=%d\n",
 					__func__, ret);
+		}
 	}
+
+
 
 	return ret;
 }
-
+/*HS60 code for HS60-296 by wangqilin at 2019/08/13 end*/
 static int mdss_dsi_panel_power_lp(struct mdss_panel_data *pdata, int enable)
 {
 	/* Panel power control when entering/exiting lp mode */
@@ -1596,7 +1674,13 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 			pr_debug("reset enable: pinctrl not enabled\n");
 		mdss_dsi_panel_reset(pdata, 1);
 	}
-
+	/* HS70 code for HS70-133 by liufurong at 2019/10/31 start */
+	#ifdef CONFIG_TOUCHSCREEN_ILI
+	if (is_ilitek_tp) {
+		ilitek_resume_by_ddi();
+	}
+	#endif
+	/* HS70 code for HS70-133 by liufurong at 2019/10/31 end */
 	if (mipi->init_delay)
 		usleep_range(mipi->init_delay, mipi->init_delay + 10);
 

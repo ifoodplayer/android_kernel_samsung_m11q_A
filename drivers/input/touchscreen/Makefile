@@ -106,5 +106,18 @@ obj-$(CONFIG_TOUCHSCREEN_COLIBRI_VF50)	+= colibri-vf50-ts.o
 obj-$(CONFIG_TOUCHSCREEN_ROHM_BU21023)	+= rohm_bu21023.o
 obj-$(CONFIG_TOUCHSCREEN_FTS)		+= focaltech_touch/
 obj-$(CONFIG_TOUCHSCREEN_GT9XX_v28)		+= gt9xx_v2.8/
-obj-$(CONFIG_TOUCHSCREEN_HIMAX_CHIPSET)	+= hxchipset/
+
 obj-$(CONFIG_TOUCHSCREEN_EKTF3XXX_CHIPSET) += ektf3xxx/
+# huaqin add for HS70-35 bringup TP function by zhouzichun at 2019/09/29 start
+
+obj-$(CONFIG_TOUCHSCREEN_FTS_1695)	+= focaltech_touch_1695/
+obj-$(CONFIG_TOUCHSCREEN_GX)	+= gt1151q_1695/
+
+# huaqin add for HS70-124 bringup TP function by gaozhengwei at 2019/10/02 start
+
+# huaqin add for HS70-124 bringup TP function by gaozhengwei at 2019/10/02 end
+
+
+obj-$(CONFIG_TOUCHSCREEN_ILI)	+= ILI_touch/
+obj-$(CONFIG_TOUCHSCREEN_FTS_1871)	+= focaltech_touch_1871/
+# huaqin add for HS70-35 bringup TP function by zhouzichun at 2019/09/29 end

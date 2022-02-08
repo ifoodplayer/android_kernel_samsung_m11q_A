@@ -628,7 +628,13 @@ struct mdss_panel_hdr_properties {
 	/* Blackness level supported by panel */
 	u32 blackness_level;
 };
-
+/*HS70 code for HS70-132 by liufurong at 2019/10/10 start*/
+enum bklt_dcs_ctrl_mode {
+	CTRL_MODE_0X0FFF,
+	CTRL_MODE_0XFF0F,
+	CTRL_MODE_UNKNOWN
+};
+/*HS70 code for HS70-132 by liufurong at 2019/10/10 end*/
 struct mdss_panel_info {
 	u32 xres;
 	u32 yres;
@@ -652,6 +658,17 @@ struct mdss_panel_info {
 	u32 rst_seq[MDSS_DSI_RST_SEQ_LEN];
 	u32 rst_seq_len;
 	u32 vic; /* video identification code */
+
+	/*HS70 code for HS70-132 by liufurong at 2019/10/10 start*/
+	u32 bklt_dcs_ctrl_mode;
+	/*HS70 code for HS70-132 by liufurong at 2019/10/10 end*/
+	/*HS70 code for SR-ZQL1871-01-94 by wangdeyan at 2019/10/25 start*/
+	u32 reset_delay_vsp_ms;
+	/*HS70 code for SR-ZQL1871-01-94 by wangdeyan at 2019/10/25 start*/
+	/*HS70 code for SR-ZQL1871-01-94 by liufurong at 2019/10/26 start*/
+	bool reset_keephigh;
+	/*HS70 code for SR-ZQL1871-01-94 by liufurong at 2019/10/26 start*/
+
 	struct mdss_rect roi;
 	int pwm_pmic_gpio;
 	int pwm_lpg_chan;

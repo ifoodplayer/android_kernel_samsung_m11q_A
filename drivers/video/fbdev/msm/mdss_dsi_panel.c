@@ -29,7 +29,9 @@
 #include "mdss_dba_utils.h"
 #endif
 #include "mdss_debug.h"
-
+/*HS60 code for HS60-54 by wangqilin at 2019/07/17 start*/
+extern char mdss_mdp_panel[MDSS_MAX_PANEL_LEN];
+/*HS60 code for HS60-54 by wangqilin at 2019/07/17 end*/
 #define DT_CMD_HDR 6
 #define DEFAULT_MDP_TRANSFER_TIME 14000
 
@@ -212,13 +214,13 @@ static void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 }
-
-static char led_pwm1[2] = {0x51, 0x0};	/* DTYPE_DCS_WRITE1 */
+/*HS70 code for HS70-7 by wangdeyan at 2019/10/01 start*/
+static char led_pwm1[3] = {0x51, 0x0 ,0x0};	/* DTYPE_DCS_WRITE1 */
 static struct dsi_cmd_desc backlight_cmd = {
-	{DTYPE_DCS_WRITE1, 1, 0, 0, 1, sizeof(led_pwm1)},
+	{DTYPE_DCS_LWRITE, 1, 0, 0, 1, sizeof(led_pwm1)},
 	led_pwm1
 };
-
+/*HS70 code for HS70-7 by wangdeyan at 2019/10/01 end*/
 static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 {
 	struct dcs_cmd_req cmdreq;
@@ -231,8 +233,20 @@ static void mdss_dsi_panel_bklt_dcs(struct mdss_dsi_ctrl_pdata *ctrl, int level)
 	}
 
 	pr_debug("%s: level=%d\n", __func__, level);
-
-	led_pwm1[1] = (unsigned char)level;
+/*HS70 code for HS70-7 by wangdeyan at 2019/10/01 start*/
+/*HS70 code for HS70-132 by liufurong at 2019/10/10 start*/
+if(ctrl->panel_data.panel_info.bklt_dcs_ctrl_mode == CTRL_MODE_0X0FFF) {
+	led_pwm1[1] = (unsigned char)((level & 0x0f00) >> 8);
+	led_pwm1[2] = (unsigned char)(level & 0x00ff);
+}else if(ctrl->panel_data.panel_info.bklt_dcs_ctrl_mode == CTRL_MODE_0XFF0F) {
+	led_pwm1[1] = (unsigned char)((level >> 4) & 0x00ff);
+	led_pwm1[2] = (unsigned char)level & 0x000f;
+} else {
+	led_pwm1[1] = (unsigned char)((level & 0x0f00) >> 8);
+	led_pwm1[2] = (unsigned char)(level & 0x00ff);
+}
+/*HS70 code for HS70-132 by liufurong at 2019/10/10 end*/
+/*HS70 code for HS70-7 by wangdeyan at 2019/10/01 end*/
 
 	memset(&cmdreq, 0, sizeof(cmdreq));
 	cmdreq.cmds = &backlight_cmd;
@@ -517,7 +531,14 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 			usleep_range(100, 110);
 			gpio_free(ctrl_pdata->disp_en_gpio);
 		}
-		gpio_set_value((ctrl_pdata->rst_gpio), 0);
+		/*HS70 code for SR-ZQL1871-01-94 by liufurong at 2019/10/26 start*/
+		if (ctrl_pdata->panel_data.panel_info.reset_keephigh)
+			gpio_set_value((ctrl_pdata->rst_gpio), 1);
+		else
+		{
+			gpio_set_value((ctrl_pdata->rst_gpio), 0);
+		}
+		/*HS70 code for SR-ZQL1871-01-94 by liufurong at 2019/10/26 end*/
 		gpio_free(ctrl_pdata->rst_gpio);
 		if (gpio_is_valid(ctrl_pdata->mode_gpio))
 			gpio_free(ctrl_pdata->mode_gpio);
@@ -2001,7 +2022,12 @@ static void mdss_dsi_parse_esd_params(struct device_node *np,
 
 	pinfo->esd_check_enabled = of_property_read_bool(np,
 		"qcom,esd-check-enabled");
-
+/*HS60 code for HS60-54 by wangqilin at 2019/07/17 start*/
+	if(strstr(mdss_mdp_panel, "esd_disabled")) {
+		pr_err("No panel, add esd_disabled kernel\n");
+		pinfo->esd_check_enabled = false;
+	}
+/*HS60 code for HS60-54 by wangqilin at 2019/07/17 end*/
 	if (!pinfo->esd_check_enabled)
 		return;
 
@@ -2779,6 +2805,20 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-bl-max-level", &tmp);
 	pinfo->bl_max = (!rc ? tmp : 255);
 	ctrl_pdata->bklt_max = pinfo->bl_max;
+/*HS70 code for HS70-132 by liufurong at 2019/10/10 start*/
+	rc = of_property_read_u32(np, "qcom,bklt-dcs-ctrl-mode", &tmp);
+	pinfo->bklt_dcs_ctrl_mode = (!rc ? tmp : CTRL_MODE_UNKNOWN);
+	pr_info("pinfo->bklt_dcs_ctrl_mode = %d rc = %d\n",pinfo->bklt_dcs_ctrl_mode,rc);
+/*HS70 code for HS70-132 by liufurong at 2019/10/10 end*/
+
+	/*HS70 code for SR-ZQL1871-01-94 by wangdeyan at 2019/10/25 start*/
+	rc = of_property_read_u32(np, "qcom,mdss-dsi-reset-delay-vsp-ms", &tmp);
+	pinfo->reset_delay_vsp_ms = (!rc ? tmp : 0);
+	pr_info("pinfo->reset_delay_vsp_ms = %d rc = %d\n",pinfo->reset_delay_vsp_ms,rc);
+	/*HS70 code for SR-ZQL1871-01-94 by wangdeyan at 2019/10/25 end*/
+	/*HS70 code for SR-ZQL1871-01-94 by liufurong at 2019/10/25 start*/
+	pinfo->reset_keephigh = of_property_read_bool(np,"qcom,mdss-dsi-reset-keephigh");
+	/*HS70 code for SR-ZQL1871-01-94 by liufurong at 2019/10/25 end*/
 
 	rc = of_property_read_u32(np, "qcom,mdss-dsi-interleave-mode", &tmp);
 	pinfo->mipi.interleave_mode = (!rc ? tmp : 0);
